@@ -18,19 +18,15 @@ Here's our first attempt at using data to create a table:
 import streamlit as st
 import pandas as pd
 import pandas as pd
-from yahoofinancials import YahooFinancials
-startDate = '2004-04-30'
-endDate = '2023-12-31'
-freq = 'monthly'
 
-tickers = ['^GSPC','^IBEX','^STOXX','^IXIC','^N225','^FTSE']
-yahoo_financials = YahooFinancials(tickers)
-data = yahoo_financials.get_historical_price_data(start_date=startDate, 
-                                                  end_date=endDate, 
-                                                  time_interval=freq)
 
-aux = pd.DataFrame(data['^STOXX']['prices'])
-aux.head()
+
+if st.checkbox('Show dataframe'):
+    chart_data = pd.DataFrame(
+       np.random.randn(20, 3),
+       columns=['a', 'b', 'c'])
+
+    chart_data
 
 
 
