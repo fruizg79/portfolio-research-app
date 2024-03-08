@@ -7,6 +7,10 @@ import streamlit as st
 import numpy as np
 import cblacklitterman
 
+
+st.title('Black-Litterman')
+st.title('_Streamlit_ is :blue[cool] :sunglasses:')
+
 asset_names = ['asset1','asset2','asset3', 'asset4','asset5', 'asset6','asset7']
 sigma = np.array([[0.00002,0.00001,-0.00010,-0.00017,-0.00018,-0.00020,-0.00007],
 [0.00001,0.00299,0.00294,0.00071,0.00236,-0.00065,0.00604],
@@ -45,8 +49,5 @@ bl.get_view_returns()
 bl.get_omega()
 bl_ret = bl.get_bl_returns()
 
-
-import matplotlib.pyplot as plt
-plt.bar(asset_names,eq_ret)
-plt.bar(asset_names,bl_ret)
-plt.show()
+chart_data = pd.DataFrame(eq_ret, columns=asset_names)
+st.bar_chart(chart_data)
