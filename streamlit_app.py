@@ -38,3 +38,7 @@ bl.get_omega()
 bl_ret = bl.get_bl_returns()
 
 
+import matplotlib.pyplot as plt
+plt.bar(asset_names,eq_ret)
+plt.bar(asset_names,bl_ret)
+plt.show()
