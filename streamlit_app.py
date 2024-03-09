@@ -49,5 +49,5 @@ bl.get_view_returns()
 bl.get_omega()
 bl_ret = bl.get_bl_returns()
 
-chart_data = pd.DataFrame(eq_ret, columns=asset_names)
+chart_data = pd.DataFrame(bl_ret)
 st.bar_chart(chart_data)
