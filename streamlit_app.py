@@ -1,20 +1,13 @@
-import streamlit as st
-import time
+import matplotlib.pyplot as plt
 import numpy as np
-progress_bar = st.sidebar.progress(0)
-status_text = st.sidebar.empty()
-last_rows = np.random.randn(1, 1)
-chart = st.line_chart(last_rows)
-for i in range(1, 101):
-    new_rows = last_rows[-1, :] + np.random.randn(5, 1).cumsum(axis=0)
-    status_text.text("%i%% Complete" % i)
-    chart.add_rows(new_rows)
-    progress_bar.progress(i)
-    last_rows = new_rows
-    time.sleep(0.05)
-progress_bar.empty()
-# Streamlit widgets automatically run the script from top to bottom. Since
-# this button is not connected to any other logic, it just causes a plain
-# rerun.
-st.button("Re-run")
+import pandas as pd
+import streamlit as st
+import os
+#"Global Land and Ocean January - December Average Temperature Anomalies"
+#Anomalies are with respect to the 20th century average (1901-2000). Monthly and annual global anomalies are available through the most recent complete month and year, respectively.
+st.title('Average Temperature Anomalies')
+df_temperature = pd.read_csv("\\data\\co2\\1850-2023.csv")
 
+st.line_chart(df_temperature.Anomaly,
+              x="Year",
+              y="Anomaly")
