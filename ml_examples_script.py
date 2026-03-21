@@ -241,8 +241,8 @@ def example_2_robust_covariance():
     
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
     
-    # Standard correlation
-    standard_corr = standard_cov / np.outer(standard_vols, standard_vols)
+    # Standard correlation — force numpy array to allow [i, j] indexing
+    standard_corr = (standard_cov.values if hasattr(standard_cov, 'values') else standard_cov) / np.outer(standard_vols, standard_vols)
     im1 = ax1.imshow(standard_corr, cmap='RdYlGn', vmin=-1, vmax=1)
     ax1.set_title('Standard Correlation Matrix', fontweight='bold')
     ax1.set_xticks(range(len(returns_df.columns)))
@@ -257,8 +257,8 @@ def example_2_robust_covariance():
     
     plt.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
     
-    # Robust correlation
-    robust_corr = robust_cov / np.outer(robust_vols, robust_vols)
+    # Robust correlation — force numpy array to allow [i, j] indexing
+    robust_corr = (robust_cov.values if hasattr(robust_cov, 'values') else robust_cov) / np.outer(robust_vols, robust_vols)
     im2 = ax2.imshow(robust_corr, cmap='RdYlGn', vmin=-1, vmax=1)
     ax2.set_title('Robust Correlation Matrix (PCA)', fontweight='bold')
     ax2.set_xticks(range(len(returns_df.columns)))
@@ -782,7 +782,11 @@ def example_6_backtesting():
     ax2.plot(range(len(bh_drawdown)), bh_drawdown, linewidth=2, 
             label='Equal Weight', linestyle='--')
     
-    ax2.fill_between(range(len(drawdown)), 0, drawdown, alpha=0.3)
+    last_freq = list(backtest_results.keys())[-1]
+    last_values = backtest_results[last_freq]['portfolio_values']
+    last_peak = np.maximum.accumulate(last_values)
+    drawdown_fill = (last_values - last_peak) / last_peak * 100
+    ax2.fill_between(range(len(drawdown_fill)), 0, drawdown_fill, alpha=0.3)
     ax2.set_xlabel('Days')
     ax2.set_ylabel('Drawdown (%)')
     ax2.set_title('Portfolio Drawdown', fontweight='bold')

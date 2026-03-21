@@ -60,9 +60,11 @@ class MLPortfolioEnhancer:
             # Target: future returns
             y = returns_df[asset].shift(-forecast_days)
             
-            # Align features and target
-            X = features.loc[y.dropna().index]
-            y_clean = y.dropna()
+            # Align features and target using intersection to avoid KeyError
+            # (features index is shorter due to rolling dropna; y index drops last forecast_days rows)
+            common_index = features.index.intersection(y.dropna().index)
+            X = features.loc[common_index]
+            y_clean = y.loc[common_index]
             
             if len(X) < 50:
                 predictions[asset] = returns_df[asset].mean() * forecast_days
@@ -173,12 +175,12 @@ class MLPortfolioEnhancer:
         features = pd.DataFrame()
         features['avg_return'] = returns_df.mean(axis=1).rolling(21).mean()
         features['volatility'] = returns_df.std(axis=1).rolling(21).mean()
-        features['correlation'] = returns_df.rolling(21).corr().mean().mean()
+        features['correlation'] = returns_df.rolling(21).corr().groupby(level=0).mean().mean(axis=1)
         features['max_drawdown'] = (
             returns_df.cumsum(axis=1).max(axis=1) - returns_df.cumsum(axis=1).min(axis=1)
         )
         
-        features = features.fillna(method='bfill').fillna(0)
+        features = features.bfill().fillna(0)
         
         # Cluster
         kmeans = KMeans(n_clusters=n_regimes, random_state=42, n_init=10)
@@ -293,7 +295,7 @@ class MLPortfolioEnhancer:
             'robust_cov_used': use_robust_cov
         }
     
-    def backtest_strategy(self, returns_df, weights, rebalance_frequency='monthly'):
+    def backtest_strategy(self, returns_df, weights, rebalance_frequency='monthly', risk_free_rate=0.02):
         """
         Backtest a portfolio strategy.
         
@@ -340,7 +342,7 @@ class MLPortfolioEnhancer:
         daily_returns = np.diff(portfolio_values) / portfolio_values[:-1]
         annual_return = np.mean(daily_returns) * 252 * 100
         annual_vol = np.std(daily_returns) * np.sqrt(252) * 100
-        sharpe = annual_return / annual_vol if annual_vol > 0 else 0
+        sharpe = (annual_return - risk_free_rate * 100) / annual_vol if annual_vol > 0 else 0
         
         # Max drawdown
         peak = np.maximum.accumulate(portfolio_values)
