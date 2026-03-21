@@ -603,9 +603,9 @@ in the Software without restriction...
 ## 👤 Author
 
 **Fernando Ruiz**
-- Website: [portfolio-research.com](https://portfolio-research.com)
+- Website: [portfolio-research.com](https://fruizg79.wixsite.com/portfolio-research)
 - GitHub: [@fruizg79](https://github.com/fruizg79)
-- Email: fernando.ruiz@portfolio-research.com
+- Email: fruizg79@gmail.com
 
 ---
 
