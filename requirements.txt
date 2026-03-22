@@ -1,0 +1,23 @@
+# Asset Allocation App — dependencies
+# Install with: pip install -r requirements.txt
+
+# ── Core ──────────────────────────────────────────────────────────────────────
+streamlit>=1.35.0
+numpy>=1.26.0
+pandas>=2.1.0
+scipy>=1.11.0
+openpyxl>=3.1.0          # Excel read/write
+
+# ── Optimisation ──────────────────────────────────────────────────────────────
+cvxopt>=1.3.2             # Quadratic programming (mean-variance, TE optimisation)
+
+# ── Visualisation ─────────────────────────────────────────────────────────────
+plotly>=5.20.0
+
+# ── ML (for ml_portfolio_enhancement.py) ─────────────────────────────────────
+scikit-learn>=1.4.0
+
+# ── Optional / future ─────────────────────────────────────────────────────────
+# pandas-datareader>=0.10  # market data feeds
+# yfinance>=0.2            # Yahoo Finance prices
+# pyportfolioopt>=1.5      # additional optimisation methods
