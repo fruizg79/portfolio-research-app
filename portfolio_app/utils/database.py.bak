@@ -1,0 +1,41 @@
+import streamlit as st
+import numpy as np
+from supabase import create_client
+
+@st.cache_resource          # conexión singleton por sesión
+def get_client():
+    return create_client(
+        st.secrets["SUPABASE_URL"],
+        st.secrets["SUPABASE_KEY"]
+    )
+
+def save_scenario(name, asset_classes, eq_returns, volatilities, corr_matrix):
+    client = get_client()
+    return client.table("market_scenarios").insert({
+        "name":          name,
+        "asset_classes": asset_classes,
+        "eq_returns":    eq_returns.tolist(),
+        "volatilities":  volatilities.tolist(),
+        "corr_matrix":   corr_matrix.tolist(),
+    }).execute()
+
+def load_scenarios():
+    client = get_client()
+    return client.table("market_scenarios") \
+                 .select("id, name, created_at") \
+                 .order("created_at", desc=True) \
+                 .execute().data
+
+def load_scenario(scenario_id):
+    client = get_client()
+    row = client.table("market_scenarios") \
+                .select("*") \
+                .eq("id", scenario_id) \
+                .single() \
+                .execute().data
+    return {
+        "asset_classes": row["asset_classes"],
+        "eq_returns":    np.array(row["eq_returns"]),
+        "volatilities":  np.array(row["volatilities"]),
+        "corr_matrix":   np.array(row["corr_matrix"]),
+    }
