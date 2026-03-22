@@ -17,7 +17,10 @@ plotly>=5.20.0
 # ── ML (for ml_portfolio_enhancement.py) ─────────────────────────────────────
 scikit-learn>=1.4.0
 
+# ── DB (Data base) ─────────────────────────────────────
+supabase>=2.3.0
+
 # ── Optional / future ─────────────────────────────────────────────────────────
-# pandas-datareader>=0.10  # market data feeds
-# yfinance>=0.2            # Yahoo Finance prices
-# pyportfolioopt>=1.5      # additional optimisation methods
+pandas-datareader>=0.10  # market data feeds
+yfinance>=0.2            # Yahoo Finance prices
+pyportfolioopt>=1.5      # additional optimisation methods
