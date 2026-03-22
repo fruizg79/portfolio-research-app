@@ -57,7 +57,8 @@ _DEFAULTS: dict = {
     "active_scenario_name":  None,   # str  – nombre para mostrar en la UI
     "active_portfolio_id":   None,   # int  – ID en portfolios
     "active_portfolio_name": None,   # str  – nombre para mostrar en la UI
-
+    # ── Flags internos ────────────────────────────────────────────────────────
+    "_autoloaded": False,   # True después del primer autoload de BD
     # ────────────────────────────────────────────────────────────────────────
     # TEMPLATE — copy & adapt when adding a new module:
     #
