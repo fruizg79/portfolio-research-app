@@ -14,9 +14,6 @@ cvxopt>=1.3.2             # Quadratic programming (mean-variance, TE optimisatio
 # ── Visualisation ─────────────────────────────────────────────────────────────
 plotly>=5.20.0
 
-# ── ML (for ml_portfolio_enhancement.py) ─────────────────────────────────────
-scikit-learn>=1.4.0
-
 # ── DB (Data base) ─────────────────────────────────────
 supabase>=2.3.0
 

@@ -10,7 +10,10 @@ Keep this file SHORT. Its only jobs are:
 All business logic and page content live in pages/*.py
 """
 
+import logging
 import streamlit as st
+
+logger = logging.getLogger(__name__)
 
 # ── Must be the very first Streamlit call ─────────────────────────────────────
 st.set_page_config(
@@ -73,8 +76,14 @@ def autoload_last_session():
                 st.session_state["active_portfolio_id"]   = data["id"]
                 st.session_state["active_portfolio_name"] = data["name"]
 
-    except Exception:
-        pass  # si la BD no está disponible, arranca igualmente
+    except Exception as e:
+        # The app starts normally even without DB access.
+        # Show a non-blocking warning so the user knows auto-load was skipped.
+        logger.warning("Auto-load omitted: %s — %s", type(e).__name__, e, exc_info=True)
+        st.sidebar.warning(
+            f"⚠️ Auto-carga omitida ({type(e).__name__}). "
+            "Puedes cargar un escenario manualmente desde la página Escenarios."
+        )
 
 
 autoload_last_session()
