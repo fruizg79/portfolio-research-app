@@ -13,9 +13,12 @@ Convention
 - ui preferences   → concrete defaults (booleans, strings, numbers)
 """
 
+from __future__ import annotations
+
 import streamlit as st
 
 from utils.config import RISK_FREE_RATE, N_SIMS
+from utils.types import ScenarioData, PortfolioData
 
 
 # ── Master registry ───────────────────────────────────────────────────────────
@@ -134,6 +137,41 @@ def reset_downstream(from_key: str) -> None:
     for key in visited:
         if key in _DEFAULTS:
             st.session_state[key] = _DEFAULTS[key]
+
+
+def load_scenario_to_state(data: ScenarioData) -> None:
+    """
+    Write a fully hydrated ScenarioData into session_state and invalidate
+    all downstream computed results.
+
+    Centralises the 6-line write pattern that was duplicated in app.py and
+    pages/6_Escenarios.py.
+
+    Args:
+        data: ScenarioData returned by database.load_scenario().
+    """
+    st.session_state["asset_classes"]        = data["asset_classes"]
+    st.session_state["eq_returns"]           = data["eq_returns"]
+    st.session_state["volatilities"]         = data["volatilities"]
+    st.session_state["corr_matrix"]          = data["corr_matrix"]
+    st.session_state["active_scenario_id"]   = data["id"]
+    st.session_state["active_scenario_name"] = data["name"]
+    reset_downstream("eq_returns")
+
+
+def load_portfolio_to_state(data: PortfolioData) -> None:
+    """
+    Write a fully hydrated PortfolioData into session_state and invalidate
+    all downstream computed results.
+
+    Args:
+        data: PortfolioData returned by database.load_portfolio().
+    """
+    st.session_state["portfolio_weights"]     = data["weights"]
+    st.session_state["tactical_ranges"]       = data["tactical_ranges"]
+    st.session_state["active_portfolio_id"]   = data["id"]
+    st.session_state["active_portfolio_name"] = data["name"]
+    reset_downstream("portfolio_weights")
 
 
 def is_market_configured() -> bool:

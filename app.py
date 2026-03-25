@@ -35,8 +35,8 @@ except ImportError:
     st.stop()
 
 # ── Session state & CSS ───────────────────────────────────────────────────────
-from utils.state import init_state
-from utils.ui    import apply_css, page_header, section, divider, status_badge
+from utils.state    import init_state, load_scenario_to_state, load_portfolio_to_state
+from utils.ui       import apply_css, page_header, section, divider, status_badge
 from utils.database import get_scenarios, load_scenario, get_portfolios, load_portfolio
 
 init_state()
@@ -57,24 +57,14 @@ def autoload_last_session():
         if st.session_state.get("eq_returns") is None:
             scenarios = get_scenarios()
             if scenarios:
-                data = load_scenario(scenarios[0]["id"])  # el más reciente
-                st.session_state["asset_classes"]        = data["asset_classes"]
-                st.session_state["eq_returns"]           = data["eq_returns"]
-                st.session_state["volatilities"]         = data["volatilities"]
-                st.session_state["corr_matrix"]          = data["corr_matrix"]
-                st.session_state["active_scenario_id"]   = data["id"]
-                st.session_state["active_scenario_name"] = data["name"]
+                load_scenario_to_state(load_scenario(scenarios[0]["id"]))
 
         # Cargar última cartera vinculada al escenario activo
         if st.session_state.get("portfolio_weights") is None:
             sc_id = st.session_state.get("active_scenario_id")
             portfolios = get_portfolios(scenario_id=sc_id)
             if portfolios:
-                data = load_portfolio(portfolios[0]["id"])
-                st.session_state["portfolio_weights"]     = data["weights"]
-                st.session_state["tactical_ranges"]       = data["tactical_ranges"]
-                st.session_state["active_portfolio_id"]   = data["id"]
-                st.session_state["active_portfolio_name"] = data["name"]
+                load_portfolio_to_state(load_portfolio(portfolios[0]["id"]))
 
     except Exception as e:
         # The app starts normally even without DB access.
