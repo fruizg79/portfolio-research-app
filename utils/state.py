@@ -13,7 +13,12 @@ Convention
 - ui preferences   → concrete defaults (booleans, strings, numbers)
 """
 
+from __future__ import annotations
+
 import streamlit as st
+
+from utils.config import RISK_FREE_RATE, N_SIMS
+from utils.types import ScenarioData, PortfolioData
 
 
 # ── Master registry ───────────────────────────────────────────────────────────
@@ -47,8 +52,8 @@ _DEFAULTS: dict = {
     "bl_post_returns": None,   # np.array  – BL posterior returns
 
     # ── UI preferences ────────────────────────────────────────────────────────
-    "risk_free_rate": 0.02,   # float, used across Riesgo & BL pages
-    "n_sims":         50_000, # int, Monte Carlo draws
+    "risk_free_rate": RISK_FREE_RATE,  # float, used across Riesgo & BL pages
+    "n_sims":         N_SIMS,         # int, Monte Carlo draws
 
     # ── Base de datos — referencias activas ──────────────────────────────────
     # Se rellenan cuando el usuario carga un escenario o cartera desde BD.
@@ -82,32 +87,91 @@ def init_state() -> None:
             st.session_state[key] = default
 
 
+# ── Declarative dependency graph ──────────────────────────────────────────────
+# For each computed field, list its direct upstream dependencies.
+# Adding a new computed field only requires declaring its upstream here;
+# reset_downstream() will propagate invalidation automatically.
+#
+# Convention: only list *direct* parents; transitive dependencies are resolved
+# by the BFS traversal in reset_downstream().
+_UPSTREAM: dict[str, list[str]] = {
+    # Market inputs depend on the asset universe
+    "eq_returns":        ["asset_classes"],
+    "volatilities":      ["asset_classes"],
+    "corr_matrix":       ["asset_classes"],
+    "portfolio_weights": ["asset_classes"],
+    "tactical_ranges":   ["asset_classes"],
+    # Computed results depend on market inputs
+    "portfolio_metrics": ["eq_returns", "volatilities", "corr_matrix", "portfolio_weights"],
+    "bl_eq_returns":     ["eq_returns", "volatilities", "corr_matrix"],
+    "bl_post_returns":   ["eq_returns", "volatilities", "corr_matrix", "portfolio_weights"],
+}
+
+# Pre-build reverse graph: upstream_key → [dependent_keys]
+# This is computed once at import time so reset_downstream() is O(nodes).
+_DOWNSTREAM: dict[str, list[str]] = {}
+for _dep, _upstreams in _UPSTREAM.items():
+    for _up in _upstreams:
+        _DOWNSTREAM.setdefault(_up, []).append(_dep)
+
+
 def reset_downstream(from_key: str) -> None:
     """
-    Reset all fields that depend on *from_key* when its value changes.
+    Reset all fields that transitively depend on *from_key*.
 
-    This prevents stale computed results from showing on other pages after
-    the user modifies upstream inputs.
+    Uses BFS over the pre-built reverse dependency graph so that adding a new
+    computed field only requires updating _UPSTREAM — no manual cascade lists.
 
     Args:
         from_key: the key that just changed ("asset_classes", "eq_returns", …)
     """
-    _cascade: dict[str, list[str]] = {
-        # When asset universe changes, everything downstream is stale
-        "asset_classes": [
-            "eq_returns", "volatilities", "corr_matrix",
-            "portfolio_weights", "tactical_ranges",
-            "portfolio_metrics", "bl_eq_returns", "bl_post_returns",
-        ],
-        # When market params change, computed results are stale
-        "eq_returns":   ["portfolio_metrics", "bl_eq_returns", "bl_post_returns"],
-        "volatilities": ["portfolio_metrics", "bl_eq_returns", "bl_post_returns"],
-        "corr_matrix":  ["portfolio_metrics", "bl_eq_returns", "bl_post_returns"],
-        # When portfolio changes, metrics are stale
-        "portfolio_weights": ["portfolio_metrics", "bl_post_returns"],
-    }
-    for key in _cascade.get(from_key, []):
-        st.session_state[key] = _DEFAULTS[key]
+    visited: set[str] = set()
+    queue: list[str] = list(_DOWNSTREAM.get(from_key, []))
+    while queue:
+        key = queue.pop(0)
+        if key in visited:
+            continue
+        visited.add(key)
+        queue.extend(_DOWNSTREAM.get(key, []))
+
+    for key in visited:
+        if key in _DEFAULTS:
+            st.session_state[key] = _DEFAULTS[key]
+
+
+def load_scenario_to_state(data: ScenarioData) -> None:
+    """
+    Write a fully hydrated ScenarioData into session_state and invalidate
+    all downstream computed results.
+
+    Centralises the 6-line write pattern that was duplicated in app.py and
+    pages/6_Escenarios.py.
+
+    Args:
+        data: ScenarioData returned by database.load_scenario().
+    """
+    st.session_state["asset_classes"]        = data["asset_classes"]
+    st.session_state["eq_returns"]           = data["eq_returns"]
+    st.session_state["volatilities"]         = data["volatilities"]
+    st.session_state["corr_matrix"]          = data["corr_matrix"]
+    st.session_state["active_scenario_id"]   = data["id"]
+    st.session_state["active_scenario_name"] = data["name"]
+    reset_downstream("eq_returns")
+
+
+def load_portfolio_to_state(data: PortfolioData) -> None:
+    """
+    Write a fully hydrated PortfolioData into session_state and invalidate
+    all downstream computed results.
+
+    Args:
+        data: PortfolioData returned by database.load_portfolio().
+    """
+    st.session_state["portfolio_weights"]     = data["weights"]
+    st.session_state["tactical_ranges"]       = data["tactical_ranges"]
+    st.session_state["active_portfolio_id"]   = data["id"]
+    st.session_state["active_portfolio_name"] = data["name"]
+    reset_downstream("portfolio_weights")
 
 
 def is_market_configured() -> bool:
