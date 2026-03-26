@@ -22,6 +22,10 @@ from typing import TypedDict
 
 import numpy as np
 
+# Re-exported so pages only need one import location.
+# The class itself lives in portfolio_loader to keep the dataclass + methods together.
+from utils.portfolio_loader import FundPortfolioResult as FundPortfolioResult  # noqa: F401
+
 
 # ── Database row shapes ────────────────────────────────────────────────────────
 
