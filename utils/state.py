@@ -131,6 +131,16 @@ for _dep, _upstreams in _UPSTREAM.items():
         _DOWNSTREAM.setdefault(_up, []).append(_dep)
 
 
+def reset_downstream(from_key: str) -> None:
+    """
+    Reset all fields that transitively depend on *from_key*.
+
+    Uses BFS over the pre-built reverse dependency graph so that adding a new
+    computed field only requires updating _UPSTREAM — no manual cascade lists.
+
+    Args:
+        from_key: the key that just changed ("asset_classes", "eq_returns", …)
+    """
     visited: set[str] = set()
     queue: list[str] = list(_DOWNSTREAM.get(from_key, []))
     while queue:
