@@ -24,6 +24,9 @@ from datetime import date
 
 from supabase import create_client, Client
 
+from utils.config import PRICE_PAGE_SIZE
+from utils.types import ScenarioData, PortfolioData
+
 
 # ── Conexión singleton ────────────────────────────────────────────────────────
 @st.cache_resource
@@ -92,9 +95,12 @@ def save_prices(asset_id: int, df: pd.DataFrame) -> int:
     if not rows:
         return 0
 
-    get_client().table("price_history").upsert(
-        rows, on_conflict="asset_id,date"
-    ).execute()
+    # Paginate to avoid hitting Supabase request-size limits on large uploads.
+    db = get_client()
+    for i in range(0, len(rows), PRICE_PAGE_SIZE):
+        db.table("price_history").upsert(
+            rows[i : i + PRICE_PAGE_SIZE], on_conflict="asset_id,date"
+        ).execute()
     return len(rows)
 
 
@@ -269,7 +275,7 @@ def get_scenarios() -> list[dict]:
             .execute().data)
 
 
-def load_scenario(scenario_id: int) -> dict:
+def load_scenario(scenario_id: int) -> ScenarioData:
     """
     Carga un escenario completo desde BD y devuelve los arrays listos
     para cargar en session_state.
@@ -279,6 +285,7 @@ def load_scenario(scenario_id: int) -> dict:
            .eq("id", scenario_id)
            .single()
            .execute().data)
+<<<<<<< HEAD
     return {
         "id":               row["id"],
         "name":             row["name"],
@@ -291,6 +298,17 @@ def load_scenario(scenario_id: int) -> dict:
         "sim_models":       row.get("sim_models"),
         "sim_model_params": row.get("sim_model_params"),
     }
+=======
+    return ScenarioData(
+        id            = row["id"],
+        name          = row["name"],
+        description   = row.get("description", ""),
+        asset_classes = row["asset_classes"],
+        eq_returns    = np.array(row["eq_returns"]),
+        volatilities  = np.array(row["volatilities"]),
+        corr_matrix   = np.array(row["corr_matrix"]),
+    )
+>>>>>>> 03c8344cec153254c723c446faa6a348ed83e4d7
 
 
 def delete_scenario(scenario_id: int) -> None:
@@ -342,21 +360,21 @@ def get_portfolios(scenario_id: int = None) -> list[dict]:
     return q.execute().data
 
 
-def load_portfolio(portfolio_id: int) -> dict:
+def load_portfolio(portfolio_id: int) -> PortfolioData:
     """Carga una cartera completa desde BD."""
     row = (get_client().table("portfolios")
            .select("*")
            .eq("id", portfolio_id)
            .single()
            .execute().data)
-    return {
-        "id":              row["id"],
-        "name":            row["name"],
-        "description":     row.get("description", ""),
-        "scenario_id":     row["scenario_id"],
-        "weights":         np.array(row["weights"]),
-        "tactical_ranges": np.array(row["tactical_ranges"]),
-    }
+    return PortfolioData(
+        id              = row["id"],
+        name            = row["name"],
+        description     = row.get("description", ""),
+        scenario_id     = row["scenario_id"],
+        weights         = np.array(row["weights"]),
+        tactical_ranges = np.array(row["tactical_ranges"]),
+    )
 
 
 def delete_portfolio(portfolio_id: int) -> None:

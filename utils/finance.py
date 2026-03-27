@@ -13,7 +13,7 @@ WHY this layer exists
 
 ADDING A NEW COMPUTATION
 ------------------------
-1. Write the pure logic in asset_allocation.py (or ml_portfolio_enhancement.py).
+1. Write the pure logic in asset_allocation.py.
 2. Add a cached wrapper below.
 3. Import and call it from the relevant page.
 """
@@ -21,6 +21,7 @@ ADDING A NEW COMPUTATION
 import numpy as np
 import streamlit as st
 
+from utils.config import RISK_FREE_RATE, N_SIMS, MC_SEED, BL_TAU, BL_LAMBDA, BL_C_COEF
 from asset_allocation import (
     CPortfolio_optimization,
     CBlack_litterman,
@@ -83,9 +84,9 @@ def get_portfolio_metrics(
     volatilities: tuple[float, ...],
     corr_flat: tuple[float, ...],
     n: int,
-    risk_free_rate: float = 0.02,
-    n_sims: int = 50_000,
-    seed: int = 42,
+    risk_free_rate: float = RISK_FREE_RATE,
+    n_sims: int = N_SIMS,
+    seed: int | None = MC_SEED,
 ) -> dict:
     """
     Compute and cache portfolio risk/return metrics.
@@ -200,10 +201,10 @@ def run_black_litterman(
     n_views: int,
     recommendations: tuple[str, ...],
     confidence_levels: tuple[float, ...],
-    tau: float = 0.025,
-    lambda_param: float = 2.5,
-    risk_free_rate: float = 0.02,
-    c_coef: float = 1.0,
+    tau: float = BL_TAU,
+    lambda_param: float = BL_LAMBDA,
+    risk_free_rate: float = RISK_FREE_RATE,
+    c_coef: float = BL_C_COEF,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Run and cache the Black-Litterman model.

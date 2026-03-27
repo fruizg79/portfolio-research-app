@@ -28,7 +28,8 @@ Writes to session state:
 import pandas as pd
 import streamlit as st
 
-from utils.state import init_state, reset_downstream
+from utils.state import (init_state, reset_downstream,
+                         load_scenario_to_state, load_portfolio_to_state)
 from utils.ui    import (apply_css, page_header, section, divider,
                          kpi_card, info, warn, status_badge)
 from utils.database import (
@@ -46,10 +47,11 @@ apply_css()
 page_header("🗄️ Escenarios & Carteras",
             "Guardar, cargar y gestionar escenarios de mercado y carteras")
 
-# ── Comprobación de conexión ──────────────────────────────────────────────────
+# ── Comprobación de conexión + carga única de escenarios ─────────────────────
+# scenarios is fetched ONCE here and reused throughout the page to avoid
+# redundant round-trips (previously called 3 times per render).
 try:
     scenarios = get_scenarios()
-    _db_ok = True
 except Exception as e:
     st.error(f"❌ No se puede conectar a la base de datos: {e}")
     st.stop()
@@ -143,8 +145,6 @@ with tab_sc:
     divider()
     section("Escenarios guardados")
 
-    scenarios = get_scenarios()   # refresca tras posibles cambios
-
     if not scenarios:
         info("No hay escenarios guardados todavía.")
     else:
@@ -174,6 +174,7 @@ with tab_sc:
                                  use_container_width=True):
                         try:
                             data = load_scenario(sc["id"])
+<<<<<<< HEAD
                             st.session_state["asset_classes"]        = data["asset_classes"]
                             st.session_state["eq_returns"]           = data["eq_returns"]
                             st.session_state["volatilities"]         = data["volatilities"]
@@ -183,6 +184,9 @@ with tab_sc:
                             st.session_state["active_scenario_id"]   = data["id"]
                             st.session_state["active_scenario_name"] = data["name"]
                             reset_downstream("eq_returns")
+=======
+                            load_scenario_to_state(data)
+>>>>>>> 03c8344cec153254c723c446faa6a348ed83e4d7
                             st.success(f"✅  Escenario **{data['name']}** cargado.")
                             st.rerun()
                         except Exception as e:
@@ -281,8 +285,8 @@ with tab_pt:
     if not portfolios:
         info("No hay carteras guardadas todavía.")
     else:
-        # Mapear scenario_id → nombre para mostrarlo
-        sc_names = {s["id"]: s["name"] for s in get_scenarios()}
+        # Mapear scenario_id → nombre para mostrarlo (reuse scenarios fetched at top)
+        sc_names = {s["id"]: s["name"] for s in scenarios}
 
         for pt in portfolios:
             sc_label = sc_names.get(pt.get("scenario_id"), "—")
@@ -305,11 +309,7 @@ with tab_pt:
                                  use_container_width=True):
                         try:
                             data = load_portfolio(pt["id"])
-                            st.session_state["portfolio_weights"]     = data["weights"]
-                            st.session_state["tactical_ranges"]       = data["tactical_ranges"]
-                            st.session_state["active_portfolio_id"]   = data["id"]
-                            st.session_state["active_portfolio_name"] = data["name"]
-                            reset_downstream("portfolio_weights")
+                            load_portfolio_to_state(data)
                             st.success(f"✅  Cartera **{data['name']}** cargada.")
                             st.rerun()
                         except Exception as e:
