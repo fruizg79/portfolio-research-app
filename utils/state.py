@@ -110,8 +110,15 @@ _UPSTREAM: dict[str, list[str]] = {
     "corr_matrix":       ["asset_classes"],
     "portfolio_weights": ["asset_classes"],
     "tactical_ranges":   ["asset_classes"],
-    # Computed results depend on market inputs
-    "portfolio_metrics": ["eq_returns", "volatilities", "corr_matrix", "portfolio_weights"],
+    # Simulation models depend on the asset universe and market params
+    # (mu/sigma are auto-filled from eq_returns/volatilities in Configuración)
+    "sim_models":        ["asset_classes"],
+    "sim_model_params":  ["asset_classes", "eq_returns", "volatilities"],
+    # Computed results depend on market inputs + optional simulation models
+    "portfolio_metrics": [
+        "eq_returns", "volatilities", "corr_matrix",
+        "portfolio_weights", "sim_models", "sim_model_params",
+    ],
     "bl_eq_returns":     ["eq_returns", "volatilities", "corr_matrix"],
     "bl_post_returns":   ["eq_returns", "volatilities", "corr_matrix", "portfolio_weights"],
 }
@@ -124,38 +131,6 @@ for _dep, _upstreams in _UPSTREAM.items():
         _DOWNSTREAM.setdefault(_up, []).append(_dep)
 
 
-def reset_downstream(from_key: str) -> None:
-    """
-    Reset all fields that transitively depend on *from_key*.
-
-    Uses BFS over the pre-built reverse dependency graph so that adding a new
-    computed field only requires updating _UPSTREAM — no manual cascade lists.
-
-    Args:
-        from_key: the key that just changed ("asset_classes", "eq_returns", …)
-    """
-<<<<<<< HEAD
-    _cascade: dict[str, list[str]] = {
-        # When asset universe changes, everything downstream is stale
-        "asset_classes": [
-            "eq_returns", "volatilities", "corr_matrix",
-            "portfolio_weights", "tactical_ranges",
-            "sim_models", "sim_model_params",
-            "portfolio_metrics", "bl_eq_returns", "bl_post_returns",
-        ],
-        # When market params change, computed results are stale
-        "eq_returns":   ["sim_model_params", "portfolio_metrics", "bl_eq_returns", "bl_post_returns"],
-        "volatilities": ["sim_model_params", "portfolio_metrics", "bl_eq_returns", "bl_post_returns"],
-        "corr_matrix":  ["portfolio_metrics", "bl_eq_returns", "bl_post_returns"],
-        # When portfolio changes, metrics are stale
-        "portfolio_weights": ["portfolio_metrics", "bl_post_returns"],
-        # When simulation models change, metrics are stale
-        "sim_models":       ["portfolio_metrics"],
-        "sim_model_params": ["portfolio_metrics"],
-    }
-    for key in _cascade.get(from_key, []):
-        st.session_state[key] = _DEFAULTS[key]
-=======
     visited: set[str] = set()
     queue: list[str] = list(_DOWNSTREAM.get(from_key, []))
     while queue:
@@ -175,8 +150,9 @@ def load_scenario_to_state(data: ScenarioData) -> None:
     Write a fully hydrated ScenarioData into session_state and invalidate
     all downstream computed results.
 
-    Centralises the 6-line write pattern that was duplicated in app.py and
-    pages/6_Escenarios.py.
+    Centralises the write pattern that was duplicated in app.py and
+    pages/6_Escenarios.py.  Also restores sim_models / sim_model_params
+    when they were saved alongside the scenario.
 
     Args:
         data: ScenarioData returned by database.load_scenario().
@@ -185,6 +161,8 @@ def load_scenario_to_state(data: ScenarioData) -> None:
     st.session_state["eq_returns"]           = data["eq_returns"]
     st.session_state["volatilities"]         = data["volatilities"]
     st.session_state["corr_matrix"]          = data["corr_matrix"]
+    st.session_state["sim_models"]           = data.get("sim_models")
+    st.session_state["sim_model_params"]     = data.get("sim_model_params")
     st.session_state["active_scenario_id"]   = data["id"]
     st.session_state["active_scenario_name"] = data["name"]
     reset_downstream("eq_returns")
@@ -203,7 +181,6 @@ def load_portfolio_to_state(data: PortfolioData) -> None:
     st.session_state["active_portfolio_id"]   = data["id"]
     st.session_state["active_portfolio_name"] = data["name"]
     reset_downstream("portfolio_weights")
->>>>>>> 03c8344cec153254c723c446faa6a348ed83e4d7
 
 
 def is_market_configured() -> bool:

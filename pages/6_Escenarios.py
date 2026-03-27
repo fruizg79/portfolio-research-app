@@ -174,19 +174,7 @@ with tab_sc:
                                  use_container_width=True):
                         try:
                             data = load_scenario(sc["id"])
-<<<<<<< HEAD
-                            st.session_state["asset_classes"]        = data["asset_classes"]
-                            st.session_state["eq_returns"]           = data["eq_returns"]
-                            st.session_state["volatilities"]         = data["volatilities"]
-                            st.session_state["corr_matrix"]          = data["corr_matrix"]
-                            st.session_state["sim_models"]           = data.get("sim_models")
-                            st.session_state["sim_model_params"]     = data.get("sim_model_params")
-                            st.session_state["active_scenario_id"]   = data["id"]
-                            st.session_state["active_scenario_name"] = data["name"]
-                            reset_downstream("eq_returns")
-=======
                             load_scenario_to_state(data)
->>>>>>> 03c8344cec153254c723c446faa6a348ed83e4d7
                             st.success(f"✅  Escenario **{data['name']}** cargado.")
                             st.rerun()
                         except Exception as e:

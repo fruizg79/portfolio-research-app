@@ -29,18 +29,23 @@ from utils.portfolio_loader import FundPortfolioResult as FundPortfolioResult  #
 
 # ── Database row shapes ────────────────────────────────────────────────────────
 
-class ScenarioData(TypedDict):
+class ScenarioData(TypedDict, total=False):
     """
     Fully hydrated scenario as returned by database.load_scenario().
     All numpy arrays are ready to drop into session_state.
+
+    sim_models and sim_model_params are optional (total=False) for backwards
+    compatibility with scenarios saved before the stochastic-MC migration.
     """
-    id:            int
-    name:          str
-    description:   str
-    asset_classes: list[str]
-    eq_returns:    np.ndarray   # shape (n,)
-    volatilities:  np.ndarray   # shape (n,)
-    corr_matrix:   np.ndarray   # shape (n, n)
+    id:               int
+    name:             str
+    description:      str
+    asset_classes:    list[str]
+    eq_returns:       np.ndarray   # shape (n,)
+    volatilities:     np.ndarray   # shape (n,)
+    corr_matrix:      np.ndarray   # shape (n, n)
+    sim_models:       dict | None  # {asset_class: 'gbm'|'vasicek'|'normal'} or None
+    sim_model_params: dict | None  # {asset_class: {mu, sigma, kappa, theta}} or None
 
 
 class PortfolioData(TypedDict):

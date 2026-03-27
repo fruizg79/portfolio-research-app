@@ -285,30 +285,18 @@ def load_scenario(scenario_id: int) -> ScenarioData:
            .eq("id", scenario_id)
            .single()
            .execute().data)
-<<<<<<< HEAD
-    return {
-        "id":               row["id"],
-        "name":             row["name"],
-        "description":      row.get("description", ""),
-        "asset_classes":    row["asset_classes"],
-        "eq_returns":       np.array(row["eq_returns"]),
-        "volatilities":     np.array(row["volatilities"]),
-        "corr_matrix":      np.array(row["corr_matrix"]),
-        # Campos opcionales — None si el escenario fue guardado antes de la migración
-        "sim_models":       row.get("sim_models"),
-        "sim_model_params": row.get("sim_model_params"),
-    }
-=======
     return ScenarioData(
-        id            = row["id"],
-        name          = row["name"],
-        description   = row.get("description", ""),
-        asset_classes = row["asset_classes"],
-        eq_returns    = np.array(row["eq_returns"]),
-        volatilities  = np.array(row["volatilities"]),
-        corr_matrix   = np.array(row["corr_matrix"]),
+        id               = row["id"],
+        name             = row["name"],
+        description      = row.get("description", ""),
+        asset_classes    = row["asset_classes"],
+        eq_returns       = np.array(row["eq_returns"]),
+        volatilities     = np.array(row["volatilities"]),
+        corr_matrix      = np.array(row["corr_matrix"]),
+        # Optional fields — None for scenarios saved before the MC migration
+        sim_models       = row.get("sim_models"),
+        sim_model_params = row.get("sim_model_params"),
     )
->>>>>>> 03c8344cec153254c723c446faa6a348ed83e4d7
 
 
 def delete_scenario(scenario_id: int) -> None:
