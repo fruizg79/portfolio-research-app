@@ -4,7 +4,8 @@ pages/1_Configuracion.py
 Módulo de configuración: universo de activos y parámetros de mercado.
 
 Writes to session state:
-    asset_classes, eq_returns, volatilities, corr_matrix
+    asset_classes, eq_returns, volatilities, corr_matrix,
+    sim_models, sim_model_params
 """
 
 import io
@@ -144,11 +145,109 @@ else:  # Upload
 # ── Status ────────────────────────────────────────────────────────────────────
 divider()
 section("Estado de Configuración")
-c1, c2, c3, c4 = st.columns(4)
-c1.markdown(status_badge(bool(assets),                                 "Clases de Activo"), unsafe_allow_html=True)
-c2.markdown(status_badge(st.session_state["eq_returns"]  is not None, "Rentabilidades"),   unsafe_allow_html=True)
-c3.markdown(status_badge(st.session_state["volatilities"] is not None, "Volatilidades"),   unsafe_allow_html=True)
-c4.markdown(status_badge(st.session_state["corr_matrix"]  is not None, "Correlaciones"),   unsafe_allow_html=True)
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.markdown(status_badge(bool(assets),                                     "Clases de Activo"), unsafe_allow_html=True)
+c2.markdown(status_badge(st.session_state["eq_returns"]   is not None,    "Rentabilidades"),   unsafe_allow_html=True)
+c3.markdown(status_badge(st.session_state["volatilities"] is not None,    "Volatilidades"),    unsafe_allow_html=True)
+c4.markdown(status_badge(st.session_state["corr_matrix"]  is not None,    "Correlaciones"),    unsafe_allow_html=True)
+c5.markdown(status_badge(st.session_state["sim_models"]   is not None,    "Modelos MC"),       unsafe_allow_html=True)
+
+_mkt_ok = (st.session_state["eq_returns"] is not None
+           and st.session_state["volatilities"] is not None
+           and st.session_state["corr_matrix"] is not None)
+if _mkt_ok:
+    st.markdown("**Siguiente paso →**")
+    st.page_link("pages/2_Mi_Cartera.py", label="Ir a Mi Cartera", icon="📋")
+
+# ── 3 · Simulation models ─────────────────────────────────────────────────────
+divider()
+section("3 · Modelos de Simulación")
+info(
+    "Selecciona el <b>proceso estocástico</b> que seguirá cada clase de activo "
+    "en la simulación Monte Carlo de <i>Riesgo &amp; Retorno</i>.<br>"
+    "<b>GBM</b> — Movimiento Browniano Geométrico (rentabilidades lognormales; "
+    "adecuado para renta variable).<br>"
+    "<b>Vasicek</b> — Reversión a la media (tipos de interés, spreads de crédito; "
+    "requiere velocidad de reversión κ).<br>"
+    "<b>Normal</b> — Distribución normal simple (por defecto para cualquier activo)."
+)
+
+_market_ready = (
+    st.session_state["eq_returns"] is not None
+    and st.session_state["volatilities"] is not None
+)
+if not _market_ready:
+    st.warning(
+        "⚠️  Configura primero las Rentabilidades y Volatilidades (Sección 2) "
+        "para poder definir los modelos de simulación.")
+else:
+    _assets    = st.session_state["asset_classes"]
+    _eq_rets   = st.session_state["eq_returns"]
+    _vols      = st.session_state["volatilities"]
+    _prev_models = st.session_state.get("sim_models") or {}
+    _prev_params  = st.session_state.get("sim_model_params") or {}
+
+    MODEL_OPTIONS = {"GBM (Browniano Geométrico)": "gbm",
+                     "Vasicek (reversión media)":  "vasicek",
+                     "Normal":                     "normal"}
+    MODEL_LABELS  = {v: k for k, v in MODEL_OPTIONS.items()}
+
+    new_models = {}
+    new_params = {}
+
+    for i, ac in enumerate(_assets):
+        st.markdown(f"**{ac}**")
+        cur_model  = _prev_models.get(ac, "normal")
+        cur_params = _prev_params.get(ac, {})
+        cur_kappa  = cur_params.get("kappa", 1.0)
+
+        col_mod, col_kap = st.columns([2, 1])
+        chosen_label = col_mod.selectbox(
+            "Modelo",
+            list(MODEL_OPTIONS.keys()),
+            index=list(MODEL_OPTIONS.values()).index(cur_model),
+            key=f"sim_model_{i}",
+            label_visibility="collapsed",
+        )
+        chosen_model = MODEL_OPTIONS[chosen_label]
+
+        # κ input — only meaningful for Vasicek
+        kappa_val = cur_kappa
+        if chosen_model == "vasicek":
+            kappa_val = col_kap.number_input(
+                "κ (velocidad reversión)",
+                value=float(cur_kappa),
+                min_value=0.01, max_value=20.0,
+                step=0.1, format="%.2f",
+                key=f"sim_kappa_{i}",
+                help="Velocidad de reversión a la media. "
+                     "Valores típicos: 0.5–5 para tipos de interés.",
+            )
+        else:
+            col_kap.markdown("&nbsp;", unsafe_allow_html=True)
+
+        new_models[ac] = chosen_model
+        new_params[ac] = {
+            "mu":    float(_eq_rets[i]),   # auto-filled from market config
+            "sigma": float(_vols[i]),      # auto-filled from market config
+            "kappa": float(kappa_val),
+            "theta": float(_eq_rets[i]),   # long-run mean = equilibrium return
+        }
+
+    st.markdown("")
+    if st.button("💾  Guardar modelos de simulación", type="primary"):
+        st.session_state["sim_models"]       = new_models
+        st.session_state["sim_model_params"] = new_params
+        reset_downstream("sim_models")
+        st.success("✅  Modelos de simulación guardados.")
+
+    # Quick summary badge
+    if st.session_state.get("sim_models"):
+        cols_s = st.columns(min(len(_assets), 5))
+        for i, ac in enumerate(_assets):
+            m = st.session_state["sim_models"].get(ac, "normal")
+            colour = {"gbm": "🟢", "vasicek": "🟡", "normal": "🔵"}.get(m, "⚪")
+            cols_s[i % 5].markdown(f"{colour} **{ac[:15]}**  \n`{m}`")
 
 # ── Template download ─────────────────────────────────────────────────────────
 divider()

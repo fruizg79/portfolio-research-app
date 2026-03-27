@@ -11,6 +11,7 @@ Permite:
 
 Reads from session state:
     eq_returns, volatilities, corr_matrix, asset_classes,
+    sim_models, sim_model_params,
     portfolio_weights, tactical_ranges,
     portfolio_metrics, bl_eq_returns, bl_post_returns,
     active_scenario_id, active_scenario_name,
@@ -18,6 +19,7 @@ Reads from session state:
 
 Writes to session state:
     eq_returns, volatilities, corr_matrix, asset_classes,
+    sim_models, sim_model_params,
     portfolio_weights, tactical_ranges,
     active_scenario_id, active_scenario_name,
     active_portfolio_id, active_portfolio_name
@@ -100,12 +102,14 @@ with tab_sc:
             else:
                 try:
                     rec = save_scenario(
-                        name          = sc_name_input.strip(),
-                        asset_classes = st.session_state["asset_classes"],
-                        eq_returns    = st.session_state["eq_returns"],
-                        volatilities  = st.session_state["volatilities"],
-                        corr_matrix   = st.session_state["corr_matrix"],
-                        description   = sc_desc_input.strip(),
+                        name             = sc_name_input.strip(),
+                        asset_classes    = st.session_state["asset_classes"],
+                        eq_returns       = st.session_state["eq_returns"],
+                        volatilities     = st.session_state["volatilities"],
+                        corr_matrix      = st.session_state["corr_matrix"],
+                        description      = sc_desc_input.strip(),
+                        sim_models       = st.session_state.get("sim_models"),
+                        sim_model_params = st.session_state.get("sim_model_params"),
                     )
                     st.session_state["active_scenario_id"]   = rec["id"]
                     st.session_state["active_scenario_name"] = rec["name"]
@@ -121,13 +125,15 @@ with tab_sc:
                          help="Solo disponible si hay un escenario cargado desde BD"):
             try:
                 update_scenario(
-                    scenario_id   = sc_id,
-                    name          = sc_name_input.strip() or st.session_state["active_scenario_name"],
-                    asset_classes = st.session_state["asset_classes"],
-                    eq_returns    = st.session_state["eq_returns"],
-                    volatilities  = st.session_state["volatilities"],
-                    corr_matrix   = st.session_state["corr_matrix"],
-                    description   = sc_desc_input.strip(),
+                    scenario_id      = sc_id,
+                    name             = sc_name_input.strip() or st.session_state["active_scenario_name"],
+                    asset_classes    = st.session_state["asset_classes"],
+                    eq_returns       = st.session_state["eq_returns"],
+                    volatilities     = st.session_state["volatilities"],
+                    corr_matrix      = st.session_state["corr_matrix"],
+                    description      = sc_desc_input.strip(),
+                    sim_models       = st.session_state.get("sim_models"),
+                    sim_model_params = st.session_state.get("sim_model_params"),
                 )
                 st.success(f"✅  Escenario **{st.session_state['active_scenario_name']}** actualizado.")
             except Exception as e:
@@ -172,6 +178,8 @@ with tab_sc:
                             st.session_state["eq_returns"]           = data["eq_returns"]
                             st.session_state["volatilities"]         = data["volatilities"]
                             st.session_state["corr_matrix"]          = data["corr_matrix"]
+                            st.session_state["sim_models"]           = data.get("sim_models")
+                            st.session_state["sim_model_params"]     = data.get("sim_model_params")
                             st.session_state["active_scenario_id"]   = data["id"]
                             st.session_state["active_scenario_name"] = data["name"]
                             reset_downstream("eq_returns")

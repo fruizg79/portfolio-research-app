@@ -107,3 +107,7 @@ if st.button("💾  Guardar Cartera y Rangos", type="primary"):
         st.session_state["tactical_ranges"]   = np.array([tact[a]          for a in assets])
         reset_downstream("portfolio_weights")
         st.success("✅  Cartera y rangos tácticos guardados.")
+
+if st.session_state.get("portfolio_weights") is not None:
+    st.markdown("**Siguiente paso →**")
+    st.page_link("pages/3_Riesgo_Retorno.py", label="Calcular Riesgo & Retorno", icon="📈")

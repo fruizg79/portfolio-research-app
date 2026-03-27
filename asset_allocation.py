@@ -31,13 +31,14 @@ class CAsset(object):
     Models asset evolution using stochastic processes.
 
     Supports calibration of parameters for different simulation models
-    (Vasicek, Normal) based on historical data.
+    (GBM, Vasicek, Normal) based on historical data.
 
     Attributes:
-        data (array-like): Historical asset data
+        data (array-like): Historical asset data (log-returns for GBM/Normal,
+            levels for Vasicek)
         data_freq (str): Data frequency ('monthly', 'daily', 'weekly')
         asset_class (str): Asset class identifier
-        sim_model (str): Simulation model ('vasicek', 'normal')
+        sim_model (str): Simulation model ('gbm', 'vasicek', 'normal')
         calibrated_param (dict): Calibrated model parameters
     """
 
@@ -64,7 +65,21 @@ class CAsset(object):
         else:
             raise ValueError(f'Unknown data frequency: {self.data_freq}')
 
-        if self.sim_model == 'vasicek':
+        if self.sim_model == 'gbm':
+            # data should be log-returns (daily/monthly/weekly)
+            log_rets = self.data
+            sigma = float(np.std(log_rets) * math.sqrt(dt))
+            mu_log = float(np.mean(log_rets) * dt)
+            # Convention: mu in calibrated_param is the GBM drift (μ = log-return mean)
+            # The arithmetic drift is μ + 0.5σ²; kept separate for transparency.
+            self.calibrated_param = {
+                'sim_model': 'gbm',
+                'mu':        mu_log,          # annualised log-return mean
+                'sigma':     sigma,           # annualised log-return std dev
+                'data_freq': self.data_freq,
+            }
+
+        elif self.sim_model == 'vasicek':
             x = self.data[:-1]
             y = self.data[1:]
             slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
@@ -118,7 +133,19 @@ class CAsset(object):
         simulations = np.zeros((n_simulations, n_periods + 1))
         simulations[:, 0] = initial_value
 
-        if self.sim_model == 'vasicek':
+        if self.sim_model == 'gbm':
+            mu    = self.calibrated_param['mu']    # annualised log-return mean
+            sigma = self.calibrated_param['sigma']
+            dt    = 1.0
+
+            for t in range(n_periods):
+                dW = np.random.randn(n_simulations)
+                # S_{t+1} = S_t * exp((μ - ½σ²)dt + σ√dt W)
+                simulations[:, t + 1] = simulations[:, t] * np.exp(
+                    (mu - 0.5 * sigma ** 2) * dt + sigma * math.sqrt(dt) * dW
+                )
+
+        elif self.sim_model == 'vasicek':
             theta = self.calibrated_param['mean_rev']
             kappa = self.calibrated_param['speed_rev']
             sigma = self.calibrated_param['vol']
@@ -713,6 +740,122 @@ def calculate_conditional_var(returns, confidence_level=0.95):
     if len(tail) == 0:
         return var
     return -np.mean(tail)
+
+
+def simulate_portfolio_mc(
+    weights,
+    sim_models,
+    sim_model_params,
+    asset_classes,
+    correlation_matrix,
+    risk_free_rate=0.02,
+    n_sims=50_000,
+    seed=None,
+):
+    """
+    Multi-asset one-year Monte Carlo simulation with per-asset stochastic process.
+
+    Uses a Gaussian copula (Cholesky decomposition) to produce correlated
+    standard-normal shocks and then applies each asset's marginal process:
+
+    * **GBM**     — Geometric Brownian Motion (log-normal returns)
+                    R = exp((μ - ½σ²) + σZ) - 1
+    * **vasicek** — Ornstein-Uhlenbeck mean-reversion (one-period exact)
+                    R = θ + (μ - θ)e^{-κ} + σ_ou·Z
+                    σ_ou = σ·√((1 - e^{-2κ})/(2κ))
+    * **normal**  — Simple Gaussian (default / fallback)
+                    R = μ + σZ
+
+    Args:
+        weights (array-like): Portfolio weights summing to 1, length n.
+        sim_models (dict): {asset_class: 'gbm'|'vasicek'|'normal'}.
+            Missing keys default to 'normal'.
+        sim_model_params (dict): {asset_class: {mu, sigma[, kappa, theta]}}.
+            All values are annual decimals (e.g. mu=0.08 → 8 %).
+            'kappa' and 'theta' are only used by the Vasicek model.
+            'theta' defaults to 'mu' when absent.
+        asset_classes (list[str]): Asset class labels in the same order as
+            weights and the correlation matrix.
+        correlation_matrix (array-like): n×n symmetric correlation matrix.
+        risk_free_rate (float): Annual risk-free rate for Sharpe calculation.
+        n_sims (int): Number of Monte Carlo scenarios.
+        seed (int | None): Random seed; None → non-deterministic.
+
+    Returns:
+        dict with keys matching get_portfolio_metrics():
+            expected_return, volatility, sharpe, prob_loss,
+            var_95, es_95, sim_returns, marginal_risk.
+    """
+    w    = np.array(weights, dtype=float)
+    n    = len(asset_classes)
+    corr = np.array(correlation_matrix, dtype=float)
+
+    # ── Correlated standard-normal draws via Cholesky ────────────────────
+    rng    = np.random.default_rng(seed)
+    L      = np.linalg.cholesky(corr)
+    Z_indep = rng.standard_normal((n_sims, n))
+    Z_corr  = Z_indep @ L.T          # shape (n_sims, n) — correlated shocks
+
+    # ── Simulate one-year return for each asset ──────────────────────────
+    asset_returns = np.zeros((n_sims, n))
+
+    _models = sim_models or {}
+    _params = sim_model_params or {}
+
+    for i, ac in enumerate(asset_classes):
+        model  = _models.get(ac, 'normal')
+        params = _params.get(ac, {})
+        mu     = float(params.get('mu',    0.0))
+        sigma  = float(params.get('sigma', 0.15))
+        z      = Z_corr[:, i]
+
+        if model == 'gbm':
+            # Log-normal: R = exp((μ - ½σ²) + σZ) − 1
+            asset_returns[:, i] = np.exp((mu - 0.5 * sigma ** 2) + sigma * z) - 1
+
+        elif model == 'vasicek':
+            # Exact OU one-period: r_T = θ + (μ−θ)e^{-κ} + σ_ou·Z
+            kappa = float(params.get('kappa', 1.0))
+            theta = float(params.get('theta', mu))   # long-run mean defaults to mu
+            if kappa > 1e-9:
+                sigma_ou = sigma * math.sqrt((1 - math.exp(-2 * kappa)) / (2 * kappa))
+            else:
+                sigma_ou = sigma
+            asset_returns[:, i] = theta + (mu - theta) * math.exp(-kappa) + sigma_ou * z
+
+        else:  # 'normal' or unrecognised
+            asset_returns[:, i] = mu + sigma * z
+
+    # ── Portfolio annual returns ─────────────────────────────────────────
+    sim_returns = asset_returns @ w          # shape (n_sims,)
+
+    # ── Risk metrics (simulation-based) ─────────────────────────────────
+    mu_port    = float(np.mean(sim_returns))
+    sigma_port = float(np.std(sim_returns))
+    sharpe     = ((mu_port - risk_free_rate) / sigma_port
+                  if sigma_port > 1e-12 else 0.0)
+    prob_loss  = float(np.mean(sim_returns < 0))
+    var_95     = float(np.percentile(sim_returns, 5))
+    tail       = sim_returns[sim_returns <= var_95]
+    es_95      = float(np.mean(tail)) if len(tail) > 0 else var_95
+
+    # ── Marginal risk via simulation covariance ──────────────────────────
+    cov_sim    = np.cov(asset_returns.T)              # (n, n)
+    port_var   = float(w @ cov_sim @ w)
+    marginal_risk = ((w * (cov_sim @ w)) / port_var
+                     if port_var > 1e-12
+                     else np.full(n, 1.0 / n))
+
+    return {
+        'expected_return': mu_port,
+        'volatility':      sigma_port,
+        'sharpe':          sharpe,
+        'prob_loss':       prob_loss,
+        'var_95':          var_95,
+        'es_95':           es_95,
+        'sim_returns':     sim_returns,
+        'marginal_risk':   marginal_risk,
+    }
 
 
 ###############################################################################

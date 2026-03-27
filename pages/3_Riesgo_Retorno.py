@@ -4,7 +4,8 @@ pages/3_Riesgo_Retorno.py
 Métricas de riesgo y retorno de la cartera actual.
 
 Reads from session state:
-    eq_returns, volatilities, corr_matrix, portfolio_weights
+    eq_returns, volatilities, corr_matrix, portfolio_weights,
+    sim_models, sim_model_params  (optional — enables per-asset stochastic MC)
 Writes to session state:
     portfolio_metrics  (cached for other pages to read)
 """
@@ -14,8 +15,11 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from utils.state   import init_state
-from utils.ui      import apply_css, page_header, section, divider, kpi_card, guard
-from utils.finance import get_portfolio_metrics, to_cache_args
+from utils.ui      import apply_css, page_header, section, divider, kpi_card, guard, info
+from utils.finance import (
+    get_portfolio_metrics, run_stochastic_mc,
+    pack_sim_params, to_cache_args,
+)
 
 init_state()
 apply_css()
@@ -41,17 +45,56 @@ n_sims = st.session_state["n_sims"]
 # ── Compute (cached) ──────────────────────────────────────────────────────────
 vol_t, corr_t, n_assets = to_cache_args(vols, corr)
 
-metrics = get_portfolio_metrics(
-    weights        = tuple(weights),
-    expected_ret   = tuple(eq_ret),
-    volatilities   = vol_t,
-    corr_flat      = corr_t,
-    n              = n_assets,
-    risk_free_rate = risk_free,
-    n_sims         = n_sims,
-)
-# Cache result so other pages (e.g. a future Report page) can read it
+sim_models       = st.session_state.get("sim_models")
+sim_model_params = st.session_state.get("sim_model_params")
+
+if sim_models and sim_model_params:
+    # Per-asset stochastic process simulation (GBM / Vasicek / Normal)
+    models_t, params_t = pack_sim_params(sim_models, sim_model_params)
+    metrics = run_stochastic_mc(
+        weights                = tuple(weights),
+        asset_classes          = tuple(assets),
+        sim_models_items       = models_t,
+        sim_model_params_items = params_t,
+        corr_flat              = corr_t,
+        n                      = n_assets,
+        risk_free_rate         = risk_free,
+        n_sims                 = n_sims,
+    )
+    _mc_mode = "stochastic"
+else:
+    # Fallback: multivariate normal MC (no per-asset model configured)
+    metrics = get_portfolio_metrics(
+        weights        = tuple(weights),
+        expected_ret   = tuple(eq_ret),
+        volatilities   = vol_t,
+        corr_flat      = corr_t,
+        n              = n_assets,
+        risk_free_rate = risk_free,
+        n_sims         = n_sims,
+    )
+    _mc_mode = "normal"
+
+# Cache result so other pages (e.g. Escenarios snapshot) can read it
 st.session_state["portfolio_metrics"] = metrics
+
+# ── Simulation mode badge ────────────────────────────────────────────────────
+if _mc_mode == "stochastic":
+    _model_summary = ", ".join(
+        f"{ac}: `{sim_models.get(ac, 'normal')}`"
+        for ac in assets
+    )
+    st.success(
+        f"🎲 **Monte Carlo estocástico** — procesos por activo: {_model_summary}",
+        icon=None,
+    )
+else:
+    st.info(
+        "🎲 **Monte Carlo normal** — distribución normal multivariante (todos los activos). "
+        "Configura modelos por activo en **Configuración › Sección 3** para activar "
+        "GBM / Vasicek.",
+        icon=None,
+    )
 
 # ── KPI Cards ─────────────────────────────────────────────────────────────────
 section("Métricas Principales")
@@ -119,14 +162,17 @@ fig_rc.update_layout(
 fig_rc.update_xaxes(tickangle=-30)
 st.plotly_chart(fig_rc, use_container_width=True)
 
+import pandas as pd
 df_tbl = {
     "Activo":           assets,
     "Peso":             [f"{w:.1%}" for w in weights],
     "Rentabilidad Eq.": [f"{r:.2%}" for r in eq_ret],
     "Volatilidad":      [f"{v:.2%}" for v in vols],
+    "Modelo MC":        [
+        (sim_models or {}).get(ac, "normal") for ac in assets
+    ],
     "Contrib. Riesgo":  [f"{c:.1f}%" for c in risk_contrib * 100],
 }
-import pandas as pd
 st.dataframe(pd.DataFrame(df_tbl).set_index("Activo"), use_container_width=True)
 
 # ── Correlation heatmap ───────────────────────────────────────────────────────
@@ -146,3 +192,12 @@ fig_heat.update_layout(
     margin=dict(t=20, b=60, l=100, r=20),
 )
 st.plotly_chart(fig_heat, use_container_width=True)
+
+# ── Navigation ────────────────────────────────────────────────────────────────
+divider()
+st.markdown("**Guardar o explorar más →**")
+col_nav1, col_nav2 = st.columns(2)
+with col_nav1:
+    st.page_link("pages/6_Escenarios.py", label="Guardar resultados en BD", icon="🗄️")
+with col_nav2:
+    st.page_link("pages/4_Black_Litterman.py", label="Ajustar con Black-Litterman", icon="🔭")

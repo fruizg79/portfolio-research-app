@@ -25,6 +25,7 @@ from asset_allocation import (
     CPortfolio_optimization,
     CBlack_litterman,
     build_cov_matrix,
+    simulate_portfolio_mc,
     calculate_sharpe_ratio,
     calculate_sortino_ratio,
     calculate_max_drawdown,
@@ -36,8 +37,10 @@ from asset_allocation import (
 __all__ = [
     "get_cov_matrix",
     "get_portfolio_metrics",
+    "run_stochastic_mc",
     "run_black_litterman",
     "get_optimizer",
+    "to_cache_args",
     # scalar helpers
     "calculate_sharpe_ratio",
     "calculate_sortino_ratio",
@@ -111,6 +114,78 @@ def get_portfolio_metrics(
         n_sims         = n_sims,
         seed           = seed,
     )
+
+
+# ── Stochastic-process Monte Carlo ───────────────────────────────────────────
+@st.cache_data
+def run_stochastic_mc(
+    weights: tuple[float, ...],
+    asset_classes: tuple[str, ...],
+    sim_models_items: tuple[tuple, ...],      # tuple(sorted(sim_models.items()))
+    sim_model_params_items: tuple[tuple, ...], # tuple((ac, tuple(sorted(p.items()))) …)
+    corr_flat: tuple[float, ...],
+    n: int,
+    risk_free_rate: float = 0.02,
+    n_sims: int = 50_000,
+    seed: int | None = None,
+) -> dict:
+    """
+    Cached wrapper around simulate_portfolio_mc().
+
+    All mutable arguments are converted to hashable tuples so that
+    @st.cache_data can serialise the cache key.
+
+    Args:
+        weights:               Portfolio weights as a flat tuple.
+        asset_classes:         Asset class labels as a tuple (same order as weights).
+        sim_models_items:      tuple(sorted(sim_models.items())) — dict serialised.
+        sim_model_params_items: Serialised params — see _pack_params() helper below.
+        corr_flat:             Correlation matrix flattened row-major.
+        n:                     Number of assets.
+        risk_free_rate:        Annual risk-free rate.
+        n_sims:                MC draws.
+        seed:                  RNG seed.
+
+    Returns:
+        dict identical to get_portfolio_metrics().
+    """
+    # Reconstruct dicts from hashable tuples
+    sim_models = dict(sim_models_items)
+    sim_model_params = {
+        ac: dict(param_items)
+        for ac, param_items in sim_model_params_items
+    }
+    corr = np.array(corr_flat).reshape(n, n)
+
+    return simulate_portfolio_mc(
+        weights           = np.array(weights),
+        sim_models        = sim_models,
+        sim_model_params  = sim_model_params,
+        asset_classes     = list(asset_classes),
+        correlation_matrix= corr,
+        risk_free_rate    = risk_free_rate,
+        n_sims            = n_sims,
+        seed              = seed,
+    )
+
+
+def pack_sim_params(
+    sim_models: dict,
+    sim_model_params: dict,
+) -> tuple[tuple, tuple]:
+    """
+    Convert sim_models and sim_model_params dicts to hashable tuples
+    suitable for passing to run_stochastic_mc() (which is @st.cache_data).
+
+    Returns:
+        (sim_models_items, sim_model_params_items)
+    """
+    models_items = tuple(sorted(sim_models.items()))
+    params_items = tuple(
+        (ac, tuple(sorted(p.items())))
+        for ac, p in sorted(sim_model_params.items())
+    )
+    return models_items, params_items
 
 
 # ── Black-Litterman ───────────────────────────────────────────────────────────

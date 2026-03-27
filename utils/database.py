@@ -220,17 +220,21 @@ def save_scenario(name: str,
                   corr_matrix: np.ndarray,
                   description: str = "",
                   history_from: date = None,
-                  history_to: date = None) -> dict:
+                  history_to: date = None,
+                  sim_models: dict = None,
+                  sim_model_params: dict = None) -> dict:
     """Guarda un nuevo escenario de mercado. Devuelve el registro creado."""
     return get_client().table("market_scenarios").insert({
-        "name":          name,
-        "description":   description,
-        "asset_classes": asset_classes,
-        "eq_returns":    eq_returns.tolist(),
-        "volatilities":  volatilities.tolist(),
-        "corr_matrix":   corr_matrix.tolist(),
-        "history_from":  str(history_from) if history_from else None,
-        "history_to":    str(history_to)   if history_to   else None,
+        "name":             name,
+        "description":      description,
+        "asset_classes":    asset_classes,
+        "eq_returns":       eq_returns.tolist(),
+        "volatilities":     volatilities.tolist(),
+        "corr_matrix":      corr_matrix.tolist(),
+        "history_from":     str(history_from) if history_from else None,
+        "history_to":       str(history_to)   if history_to   else None,
+        "sim_models":       sim_models       or None,
+        "sim_model_params": sim_model_params or None,
     }).execute().data[0]
 
 
@@ -240,16 +244,20 @@ def update_scenario(scenario_id: int,
                     eq_returns: np.ndarray,
                     volatilities: np.ndarray,
                     corr_matrix: np.ndarray,
-                    description: str = "") -> dict:
+                    description: str = "",
+                    sim_models: dict = None,
+                    sim_model_params: dict = None) -> dict:
     """Actualiza un escenario existente."""
     return get_client().table("market_scenarios").update({
-        "name":          name,
-        "description":   description,
-        "asset_classes": asset_classes,
-        "eq_returns":    eq_returns.tolist(),
-        "volatilities":  volatilities.tolist(),
-        "corr_matrix":   corr_matrix.tolist(),
-        "updated_at":    "now()",
+        "name":             name,
+        "description":      description,
+        "asset_classes":    asset_classes,
+        "eq_returns":       eq_returns.tolist(),
+        "volatilities":     volatilities.tolist(),
+        "corr_matrix":      corr_matrix.tolist(),
+        "updated_at":       "now()",
+        "sim_models":       sim_models       or None,
+        "sim_model_params": sim_model_params or None,
     }).eq("id", scenario_id).execute().data[0]
 
 
@@ -272,13 +280,16 @@ def load_scenario(scenario_id: int) -> dict:
            .single()
            .execute().data)
     return {
-        "id":            row["id"],
-        "name":          row["name"],
-        "description":   row.get("description", ""),
-        "asset_classes": row["asset_classes"],
-        "eq_returns":    np.array(row["eq_returns"]),
-        "volatilities":  np.array(row["volatilities"]),
-        "corr_matrix":   np.array(row["corr_matrix"]),
+        "id":               row["id"],
+        "name":             row["name"],
+        "description":      row.get("description", ""),
+        "asset_classes":    row["asset_classes"],
+        "eq_returns":       np.array(row["eq_returns"]),
+        "volatilities":     np.array(row["volatilities"]),
+        "corr_matrix":      np.array(row["corr_matrix"]),
+        # Campos opcionales — None si el escenario fue guardado antes de la migración
+        "sim_models":       row.get("sim_models"),
+        "sim_model_params": row.get("sim_model_params"),
     }
 
 

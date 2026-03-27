@@ -38,9 +38,18 @@ _DEFAULTS: dict = {
     "portfolio_weights": None,   # np.array, sums to 1
     "tactical_ranges":   None,   # np.array, decimal  (e.g. 0.10 = ±10 pp)
 
+    # ── Modelos de Simulación ─────────────────────────────────────────────────
+    # None hasta que el usuario los configura en Configuración (sección 3).
+    # sim_models:       dict {asset_class: 'gbm' | 'vasicek' | 'normal'}
+    # sim_model_params: dict {asset_class: {mu, sigma, [kappa, theta]}}
+    # mu y sigma se pre-rellenan desde eq_returns/volatilities.
+    # Solo kappa requiere input adicional del usuario (modelo Vasicek).
+    "sim_models":       None,
+    "sim_model_params": None,
+
     # ── Riesgo & Retorno (cached results) ────────────────────────────────────
     # Stored so other pages can read metrics without re-running Monte Carlo.
-    "portfolio_metrics": None,   # dict returned by CPortfolio_optimization.get_portfolio_metrics()
+    "portfolio_metrics": None,   # dict returned by get_portfolio_metrics() o simulate_portfolio_mc()
 
     # ── Black-Litterman (cached results) ─────────────────────────────────────
     "bl_eq_returns":   None,   # np.array  – equilibrium returns (π)
@@ -97,14 +106,18 @@ def reset_downstream(from_key: str) -> None:
         "asset_classes": [
             "eq_returns", "volatilities", "corr_matrix",
             "portfolio_weights", "tactical_ranges",
+            "sim_models", "sim_model_params",
             "portfolio_metrics", "bl_eq_returns", "bl_post_returns",
         ],
         # When market params change, computed results are stale
-        "eq_returns":   ["portfolio_metrics", "bl_eq_returns", "bl_post_returns"],
-        "volatilities": ["portfolio_metrics", "bl_eq_returns", "bl_post_returns"],
+        "eq_returns":   ["sim_model_params", "portfolio_metrics", "bl_eq_returns", "bl_post_returns"],
+        "volatilities": ["sim_model_params", "portfolio_metrics", "bl_eq_returns", "bl_post_returns"],
         "corr_matrix":  ["portfolio_metrics", "bl_eq_returns", "bl_post_returns"],
         # When portfolio changes, metrics are stale
         "portfolio_weights": ["portfolio_metrics", "bl_post_returns"],
+        # When simulation models change, metrics are stale
+        "sim_models":       ["portfolio_metrics"],
+        "sim_model_params": ["portfolio_metrics"],
     }
     for key in _cascade.get(from_key, []):
         st.session_state[key] = _DEFAULTS[key]
